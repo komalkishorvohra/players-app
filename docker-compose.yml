@@ -1,0 +1,40 @@
+services:
+  # PostgreSQL Service
+  postgres:
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    build:
+      context: ./redis  # Specify the directory containing the Redis Dockerfile
+      dockerfile: Dockerfile  # Name of the Dockerfile in the redis directory
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+#  # Spring Boot Application Service
+#  spring-app:
+#    build: .
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      - postgres
+#      - redis
+#    environment:
+#      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+#      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+#      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+#      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+
+volumes:
+  pgdata:
+  redisdata:
