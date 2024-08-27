@@ -23,9 +23,6 @@ A comprehensive Spring Boot-based application for managing player information, i
     - [Application Properties](#application-properties)
     - [Redis Configuration](#redis-configuration)
 - [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
 
 ---
 
@@ -200,12 +197,8 @@ maxmemory 10mb
 maxmemory-policy allkeys-lru
 ```
 
-#### 11. **Future Enhancements**
-```markdown
 ## Future Enhancements
-
 - **Authentication and Authorization**: Implement security using Spring Security and JWT.
 - **API Documentation**: Integrate Swagger for API documentation.
 - **CI/CD Pipeline**: Set up a CI/CD pipeline using Jenkins or GitHub Actions.
 - **Monitoring**: Add monitoring with Prometheus and Grafana.
-```
