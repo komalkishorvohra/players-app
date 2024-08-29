@@ -2,6 +2,7 @@ package com.example.players.controller;
 
 import com.example.players.entity.Player;
 import com.example.players.service.PlayerService;
+import com.example.players.service.RateLimiterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpHeaders;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,25 +22,17 @@ import java.util.UUID;
 public class PlayerController {
     @Autowired
     PlayerService playerService;
-
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadPlayers(@RequestParam("file") MultipartFile file) {
-        try {
-            playerService.processCSVFile(file);
-            return ResponseEntity.status(HttpStatus.OK).body("CSV file is being processed");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process CSV File");
-        }
-    }
-
-    @PostMapping("/upload-json")
-    public ResponseEntity<String> uploadPlayersFromJson(@RequestBody List<Player> players) {
-        playerService.saveAllPlayers(players);
-        return new ResponseEntity<>("Players have been uploaded successfully", HttpStatus.OK);
-    }
+    @Autowired
+    RateLimiterService rateLimiterService;
 
     @GetMapping
-    public ResponseEntity<Page<Player>> getPlayers(@PageableDefault(size = 5) Pageable pageable) {
+    public ResponseEntity<Page<Player>> getPlayers(@RequestHeader(value = "X-Client-Id") String clientId,
+                                                   @PageableDefault(size = 5) Pageable pageable) {
+        if (!rateLimiterService.isAllowed(clientId)) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Error-Message", "Too many requests. Please try again later.");
+            return new ResponseEntity<>(null, headers, HttpStatus.TOO_MANY_REQUESTS);
+        }
         Page<Player> players = playerService.getPlayers(pageable);
         return new ResponseEntity<>(players, HttpStatus.OK);
     }
@@ -57,5 +51,21 @@ public class PlayerController {
     public ResponseEntity<List<Player>> getTopRankingPlayers(@RequestParam(defaultValue = "5") int limit) {
         List<Player> topPlayers = playerService.getTopRankingPlayers(limit);
         return new ResponseEntity<>(topPlayers, HttpStatus.OK);
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<String> uploadPlayers(@RequestParam("file") MultipartFile file) {
+        try {
+            playerService.processCSVFile(file);
+            return ResponseEntity.status(HttpStatus.OK).body("CSV file is being processed");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process CSV File");
+        }
+    }
+
+    @PostMapping("/upload-json")
+    public ResponseEntity<String> uploadPlayersFromJson(@RequestBody List<Player> players) {
+        playerService.saveAllPlayers(players);
+        return new ResponseEntity<>("Players have been uploaded successfully", HttpStatus.OK);
     }
 }
