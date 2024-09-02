@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +42,7 @@ public class PlayerService {
             BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
             CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
                     .setHeader() // Automatically uses the first record as header
-                    .setSkipHeaderRecord(true) // skips the header record in parseing
+                    .setSkipHeaderRecord(true) // skips the header record in parsing
                     .build();
 
             CSVParser csvParser = new CSVParser(reader, csvFormat);
@@ -67,11 +68,45 @@ public class PlayerService {
 
     private Player parseCSVRecord(CSVRecord csvRecord) {
         Player player = new Player();
-        player.setName(csvRecord.get("Name"));
-        player.setEmail(csvRecord.get("Email"));
-        player.setDateOfBirth(csvRecord.get("Date of Birth"));
-        player.setGamesPlayed(csvRecord.get("Games Played"));
-        player.setRanking(Integer.valueOf(csvRecord.get("Ranking")));
+
+        player.setPlayerID(csvRecord.get("playerID"));
+        player.setBirthYear(Integer.parseInt(csvRecord.get("birthYear")));
+        player.setBirthMonth(Integer.parseInt(csvRecord.get("birthMonth")));
+        player.setBirthDay(Integer.parseInt(csvRecord.get("birthDay")));
+        player.setBirthCountry(csvRecord.get("birthCountry"));
+        player.setBirthState(csvRecord.get("birthState"));
+        player.setBirthCity(csvRecord.get("birthCity"));
+
+        // Optional fields (death information)
+        String deathYear = csvRecord.get("deathYear");
+        String deathMonth = csvRecord.get("deathMonth");
+        String deathDay = csvRecord.get("deathDay");
+
+        player.setDeathYear(deathYear.isEmpty() ? null : Integer.parseInt(deathYear));
+        player.setDeathMonth(deathMonth.isEmpty() ? null : Integer.parseInt(deathMonth));
+        player.setDeathDay(deathDay.isEmpty() ? null : Integer.parseInt(deathDay));
+
+        player.setDeathCountry(csvRecord.get("deathCountry"));
+        player.setDeathState(csvRecord.get("deathState"));
+        player.setDeathCity(csvRecord.get("deathCity"));
+        player.setNameFirst(csvRecord.get("nameFirst"));
+        player.setNameLast(csvRecord.get("nameLast"));
+        player.setNameGiven(csvRecord.get("nameGiven"));
+        player.setWeight(Integer.parseInt(csvRecord.get("weight")));
+        player.setHeight(Integer.parseInt(csvRecord.get("height")));
+        player.setBats(csvRecord.get("bats"));
+        player.setThrowSide(csvRecord.get("throws"));
+
+        // Parse debut and finalGame as LocalDate
+        player.setDebut(LocalDate.parse(csvRecord.get("debut")));
+        player.setFinalGame(LocalDate.parse(csvRecord.get("finalGame")));
+
+        player.setRetroID(csvRecord.get("retroID"));
+        player.setBbrefID(csvRecord.get("bbrefID"));
+
+        // The Date of Birth is derived from birthYear, birthMonth, and birthDay
+        LocalDate dateOfBirth = player.getDateOfBirth();
+
         log.info(player.toString());
         return player;
     }
@@ -82,7 +117,7 @@ public class PlayerService {
             try {
                 playerRepository.save(player);
             } catch (DataIntegrityViolationException e) {
-                conflictMessages.add("Ranking " + player.getRanking() + "for player " + player.getName() + "is already taken");
+                conflictMessages.add("Ranking " + player.getRetroID() + "for player " + player.getNameGiven() + "is already taken");
             }
         }
         if (!conflictMessages.isEmpty()) {
@@ -93,7 +128,7 @@ public class PlayerService {
     @Cacheable(value = "player", key="#id", unless = "#result == null")
     public Player getPlayerById(UUID id) {
         Optional<Player> playerOpt = playerRepository.findById(id);
-        playerOpt.ifPresent(player -> log.info("returning player {}", player.getName()));
+        playerOpt.ifPresent(player -> log.info("returning player {}", player.getNameGiven()));
         return playerOpt.orElse(null);
     }
 
