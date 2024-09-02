@@ -1,5 +1,6 @@
 package com.example.players.controller;
 
+import com.example.players.entity.FileProcessingTask;
 import com.example.players.entity.Player;
 import com.example.players.service.PlayerService;
 import com.example.players.service.RateLimiterService;
@@ -53,11 +54,22 @@ public class PlayerController {
         return new ResponseEntity<>(topPlayers, HttpStatus.OK);
     }
 
+    @GetMapping("/upload/status/{taskId}")
+    public ResponseEntity<FileProcessingTask> getStatus(@PathVariable UUID taskId) {
+        FileProcessingTask task = playerService.getTaskStatus(taskId);
+        if (task == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(task);
+    }
+
     @PostMapping("/upload")
     public ResponseEntity<String> uploadPlayers(@RequestParam("file") MultipartFile file) {
         try {
-            playerService.processCSVFile(file);
-            return ResponseEntity.status(HttpStatus.OK).body("CSV file is being processed");
+            UUID taskId = playerService.createTask();
+            playerService.processCSVFile(file, taskId);
+            String statusUrl = "/players/upload/status/" + taskId;
+            return ResponseEntity.accepted().header("Location", statusUrl).body("Processing task started. Check status at: " + statusUrl);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process CSV File");
         }

@@ -1,6 +1,8 @@
 package com.example.players.service;
 
+import com.example.players.entity.FileProcessingTask;
 import com.example.players.entity.Player;
+import com.example.players.repository.FileProcessingTaskRepository;
 import com.example.players.repository.PlayerRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
@@ -32,36 +34,53 @@ public class PlayerService {
     @Autowired
     PlayerRepository playerRepository;
 
+    @Autowired
+    private FileProcessingTaskRepository taskRepository;
+
     public Page<Player> getPlayers(Pageable pageable) {
         return playerRepository.findAll(pageable);
     }
 
     @Async
-    public void processCSVFile(MultipartFile file) {
+    public void processCSVFile(MultipartFile file, UUID taskId) {
+        FileProcessingTask task = taskRepository.findById(taskId).orElseThrow(() -> new IllegalStateException("Task not found"));
+        task.setStatus("IN_PROGRESS");
+        taskRepository.save(task);
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()));
             CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
                     .setHeader() // Automatically uses the first record as header
                     .setSkipHeaderRecord(true) // skips the header record in parsing
                     .build();
+            Iterable<CSVRecord> records = csvFormat.parse(reader);
+            List<Player> players = new ArrayList<>();
 
-            CSVParser csvParser = new CSVParser(reader, csvFormat);
-            List<CSVRecord> csvRecords = csvParser.getRecords();
-
-            for (CSVRecord csvRecord : csvRecords) {
+            for (CSVRecord csvRecord : records) {
                 try {
                     //Parse and validate CSV Record
                     Player player = parseCSVRecord(csvRecord);
-                    //Save player to database
-                    playerRepository.save(player);
-                } catch (DataIntegrityViolationException e) {
-                    log.error("Ranking already taken for player: {}. Skipping record.", csvRecord);
+                    players.add(player);
+
+                    if (players.size() % 1000 == 0) { // Batch size of 1000
+                        playerRepository.saveAll(players);
+                        players.clear(); // Clear the list after saving
+                        break;
+                    }
                 } catch (Exception e) {
                     log.error("Error processing record {}: {}", csvRecord, e.getMessage());
                 }
             }
+            //Save remaining records
+            if (!players.isEmpty()) {
+                playerRepository.saveAll(players);
+            }
+            task.setStatus("COMPLETED");
+            task.setResultUrl("/api/results/" + taskId); // If there's a result to retrieve
+            taskRepository.save(task);
         } catch (Exception e) {
             log.error("Error processing CSV file: {}", e.getMessage());
+            task.setStatus("FAILED");
+            taskRepository.save(task);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing CSV file.");
         }
     }
@@ -103,11 +122,6 @@ public class PlayerService {
 
         player.setRetroID(csvRecord.get("retroID"));
         player.setBbrefID(csvRecord.get("bbrefID"));
-
-        // The Date of Birth is derived from birthYear, birthMonth, and birthDay
-        LocalDate dateOfBirth = player.getDateOfBirth();
-
-        log.info(player.toString());
         return player;
     }
 
@@ -125,14 +139,27 @@ public class PlayerService {
         }
     }
 
-    @Cacheable(value = "player", key="#id", unless = "#result == null")
+    public FileProcessingTask getTaskStatus(UUID taskId) {
+        return taskRepository.findById(taskId).orElse(null);
+    }
+
+    public UUID createTask() {
+        UUID taskId = UUID.randomUUID();
+        FileProcessingTask task = new FileProcessingTask();
+        task.setTaskId(taskId);
+        task.setStatus("PENDING");
+        taskRepository.save(task);
+        return taskId;
+    }
+
+    @Cacheable(value = "player", key = "#id", unless = "#result == null")
     public Player getPlayerById(UUID id) {
         Optional<Player> playerOpt = playerRepository.findById(id);
         playerOpt.ifPresent(player -> log.info("returning player {}", player.getNameGiven()));
         return playerOpt.orElse(null);
     }
 
-    @Cacheable(value = "player", key="'topPlayers'")
+    @Cacheable(value = "player", key = "'topPlayers'")
     public List<Player> getTopRankingPlayers(int limit) {
         return playerRepository.findTopPlayersByRankingDesc(limit);
     }

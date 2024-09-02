@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
-@Table(name = "player", indexes = @Index(name = "idx_ranking", columnList = "ranking"))
+@Table(name = "player")
 @Getter
 @Setter
 public class Player implements Serializable {
